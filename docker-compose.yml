@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  bot:
+    build: .
+    restart: always
+    environment:
+      - BOT_TOKEN=8671655293:AAFRhJ6cfydYBKD97tNQQs-BmnNrSruWCeg
+      - GROQ_KEY=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
+      - IG_COOKIES=datr=BTUgaagiO2ZYRZFKmS6iwMl7;ig_did=E2AF752F-18F0-43C3-B430-F8D37B89AD7A;ig_nrcb=1;ps_l=1;ps_n=1;mid=aU92egAEAAHu6YFjq5dfWJ_3Pk7o;oo=v1;fbm_124024574287414=base_domain=.instagram.com;ds_user_id=74608160888;csrftoken=SuOX0LgUFFjSPr5yumif714rOKGp6HTJ;dpr=1.5;sessionid=74608160888%3AucgNMTr78DUAQG%3A6%3AAYhXdt07zKBQCZHL1bFzhkSEKmBFhNA7G;rur="LDC\05474608160888\0541809623011:01fee7cbed6cf5e952fe9d56a16eac01119132e8086c6ba206daa42ce6b51923a7da1a9d";wd=1248x977
+      - DEFAULT_VIEWS=150000
