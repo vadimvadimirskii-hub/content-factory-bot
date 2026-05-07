@@ -60,6 +60,7 @@ def run_on_mac(chat_id, username, min_views, status_msg_id):
             headers={"X-Auth-Token": EXTELLA_TOKEN, "Content-Type": "application/json"},
             json={
                 "expert_name": "mac_transcribe_worker",
+                "profile_id": "default",
                 "params": {
                     "username": username,
                     "min_views": min_views,
