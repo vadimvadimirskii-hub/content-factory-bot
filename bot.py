@@ -75,16 +75,37 @@ def run_pipeline(chat_id, username, min_views, status_msg_id):
 
         tg_edit(chat_id, status_msg_id, f"🔍 Ищу профиль <b>@{username}</b>...")
         user_id = None
+
+        # Method 1: Instagram mobile API (works from any IP, no cookies needed)
         try:
-            r = requests.get(
-                f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}",
-                headers={**hdrs, "Content-Type": None}, cookies=cookies, timeout=20)
-            if r.status_code == 200:
-                rj = r.json()
-                u = (rj.get("data", {}).get("user") or rj.get("user") or rj.get("graphql", {}).get("user"))
-                if u: user_id = u.get("id") or u.get("pk")
+            r0 = requests.get(
+                f"https://i.instagram.com/api/v1/users/web_profile_info/?username={username}",
+                headers={
+                    "User-Agent": "Instagram 275.0.0.27.98 Android (33/13; 420dpi; 1080x2400; samsung; SM-G991B; o1s; exynos2100; en_US; 458229258)",
+                    "X-IG-App-ID": "936619743392459",
+                    "Accept": "*/*",
+                    "Accept-Language": "en-US",
+                },
+                timeout=15)
+            if r0.status_code == 200:
+                rj0 = r0.json()
+                u0 = rj0.get("data", {}).get("user") or rj0.get("user")
+                if u0: user_id = str(u0.get("id") or u0.get("pk") or "")
         except: pass
 
+        # Method 2: web_profile_info with browser cookies
+        if not user_id:
+            try:
+                r = requests.get(
+                    f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}",
+                    headers={**hdrs, "Content-Type": None}, cookies=cookies, timeout=20)
+                if r.status_code == 200:
+                    rj = r.json()
+                    u = (rj.get("data", {}).get("user") or rj.get("user") or rj.get("graphql", {}).get("user"))
+                    if u: user_id = str(u.get("id") or u.get("pk") or "")
+            except: pass
+
+        # Method 3: HTML scrape
         if not user_id:
             try:
                 r2 = requests.get(f"https://www.instagram.com/{username}/",
