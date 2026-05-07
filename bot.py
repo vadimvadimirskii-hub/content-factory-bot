@@ -184,37 +184,70 @@ def run_pipeline(chat_id, username, min_views, status_msg_id):
                 out.write("\n")
 
                 transcript = ""
-                tmp_path = None; audio_path = None
-                if vurl:
-                    try:
-                        vr = requests.get(vurl, headers={"User-Agent": UA}, timeout=120, stream=True)
-                        tmp = tempfile.NamedTemporaryFile(suffix=".mp4", delete=False)
-                        for chunk in vr.iter_content(65536): tmp.write(chunk)
-                        tmp.flush(); tmp.close(); tmp_path = tmp.name
-                        fsize = os.path.getsize(tmp_path)
+                tmp_dir = None
+                reel_url = f"https://www.instagram.com/reel/{sc}/"
+                try:
+                    tmp_dir = tempfile.mkdtemp()
+                    # Write cookies file for yt-dlp
+                    cookies_file = os.path.join(tmp_dir, "cookies.txt")
+                    with open(cookies_file, "w") as cf:
+                        cf.write("# Netscape HTTP Cookie File\n")
+                        from urllib.parse import unquote as _uq
+                        for _p in IG_COOKIES.split(";"):
+                            _p = _p.strip()
+                            if "=" in _p:
+                                _k, _v = _p.split("=", 1)
+                                cf.write(f".instagram.com\tTRUE\t/\tFALSE\t0\t{_k.strip()}\t{_uq(_v.strip())}\n")
+
+                    out_tmpl = os.path.join(tmp_dir, "%(id)s.%(ext)s")
+                    dl = subprocess.run(
+                        ["/usr/local/bin/yt-dlp",
+                         "--cookies", cookies_file,
+                         "-f", "bestaudio/best",
+                         "--max-filesize", "24m",
+                         "-o", out_tmpl,
+                         "--no-playlist", "-q", "--no-warnings",
+                         reel_url],
+                        capture_output=True, text=True, timeout=120)
+
+                    files = [f for f in Path(tmp_dir).iterdir()
+                             if f.suffix not in [".txt", ".json"] and f.stat().st_size > 1000]
+
+                    if files:
+                        audio_path = str(files[0])
+                        fsize = os.path.getsize(audio_path)
+                        print(f"    ↓ {fsize//1024}KB via yt-dlp", flush=True)
+
+                        # Extract audio if large mp4
                         if fsize > 24*1024*1024:
                             atmp = tempfile.NamedTemporaryFile(suffix=".m4a", delete=False)
                             atmp.close()
-                            subprocess.run(["ffmpeg","-i",tmp_path,"-acodec","aac","-ab","64k","-y",atmp.name],
-                                capture_output=True, timeout=120)
-                            os.unlink(tmp_path); tmp_path=None; audio_path=atmp.name
-                        else:
-                            audio_path=tmp_path; tmp_path=None
+                            subprocess.run(["ffmpeg","-i",audio_path,"-acodec","aac",
+                                "-ab","64k","-y",atmp.name], capture_output=True, timeout=120)
+                            audio_path = atmp.name
+
                         with open(audio_path,"rb") as af:
                             ext = Path(audio_path).suffix[1:]
-                            mime = "audio/mp4" if ext=="m4a" else "video/mp4"
-                            tr = requests.post("https://api.groq.com/openai/v1/audio/transcriptions",
+                            mime = f"audio/{ext}" if ext in ["m4a","aac","mp3","opus","webm","ogg"] else "video/mp4"
+                            tr = requests.post(
+                                "https://api.groq.com/openai/v1/audio/transcriptions",
                                 headers={"Authorization":f"Bearer {GROQ_KEY}"},
                                 files={"file":(f"a.{ext}",af,mime)},
-                                data={"model":"whisper-large-v3-turbo","response_format":"text"}, timeout=180)
-                        os.unlink(audio_path); audio_path=None
-                        if tr.status_code == 200: transcript=tr.text.strip(); transcribed+=1
-                    except Exception as e:
-                        print(f"    err: {e}", flush=True)
-                        for p in [tmp_path,audio_path]:
-                            if p:
-                                try: os.unlink(p)
-                                except: pass
+                                data={"model":"whisper-large-v3-turbo","response_format":"text"},
+                                timeout=180)
+                        if tr.status_code == 200:
+                            transcript = tr.text.strip(); transcribed += 1
+                            print(f"    ✅ {len(transcript)} chars", flush=True)
+                        else:
+                            print(f"    ⚠️ Groq {tr.status_code}: {tr.text[:80]}", flush=True)
+                    else:
+                        print(f"    ⚠️ yt-dlp no files. stderr: {dl.stderr[:100]}", flush=True)
+                except Exception as e:
+                    print(f"    err: {e}", flush=True)
+                finally:
+                    if tmp_dir:
+                        import shutil
+                        shutil.rmtree(tmp_dir, ignore_errors=True)
 
                 if transcript:
                     out.write("📝 ОРИГИНАЛ:\n" + transcript + "\n\n")
